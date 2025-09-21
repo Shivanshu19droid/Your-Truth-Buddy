@@ -9,19 +9,6 @@ import { initializeDatabase } from "@/lib/database-init";
 
 export default function HomePage() {
 
-  useEffect(() => {
-  const testConnection = async () => {
-    const { data, error } = await supabase.from("users").select("*").limit(1);
-    if (error) {
-      console.log("Supabase connection error:", error);
-    } else {
-      console.log("Supabase connection successful. Sample data:", data);
-    }
-  };
-
-  testConnection();
-}, []);
-
   const [hotQuestions, setHotQuestions] = useState([]);
   const [regularQuestions, setRegularQuestions] = useState([]);
   const [userStats, setUserStats] = useState({
@@ -55,7 +42,7 @@ export default function HomePage() {
       setUserStats({
         points: user.points || 0,
         streak: user.current_streak || 0,
-        questionsAnswered: userAnswers.length,
+        questionsAnswered: user.number_of_questions_solved,
       });
 
       // Initialize DB with sample questions if needed
@@ -79,74 +66,81 @@ export default function HomePage() {
     }
   };
 
-  const handleAnswerQuestion = async (question, selectedAnswer) => {
-    if (!currentUser) return;
+const handleAnswerQuestion = async (question, selectedAnswer) => {
+  if (!currentUser) return;
+
+  try {
+    const attemptedQuestionIds = currentUser.attempted_questions || [];
+
+    if (attemptedQuestionIds.includes(question.id)) {
+      console.log("No points awarded: question already attempted");
+      return;
+    }
 
     const isCorrect = selectedAnswer === question.correct_answer;
-    const pointsEarned = question.is_hot
-      ? isCorrect
-        ? 3
-        : 0
-      : isCorrect
-      ? 1
-      : 0;
+    const pointsEarned = question.is_hot ? (isCorrect ? 3 : 0) : (isCorrect ? 1 : 0);
 
-    try {
-      // 1️⃣ Record the answer locally
-      await UserAnswer.create({
-        user_id: currentUser.id,
-        question_id: question.id,
-        selected_answer: selectedAnswer,
-        is_correct: isCorrect,
-        points_earned: pointsEarned,
-        is_hot_question: question.is_hot || false,
-      });
+    await UserAnswer.create({
+      user_id: currentUser.id,
+      question_id: question.id,
+      selected_answer: selectedAnswer,
+      is_correct: isCorrect,
+      points_earned: pointsEarned,
+      is_hot_question: question.is_hot || false,
+    });
 
-      // 2️⃣ Update local user stats
-      const newPoints = (userStats.points || 0) + pointsEarned;
-      const newQuestionsAnswered = userStats.questionsAnswered + 1;
-      setUserStats((prev) => ({
-        ...prev,
-        points: newPoints,
-        questionsAnswered: newQuestionsAnswered,
-      }));
+    const newPoints = (userStats.points || 0) + pointsEarned;
+    const newQuestionsAnswered = (userStats.questionsAnswered || 0) + 1;
 
-      await User.updateMyUserData({
-        points: newPoints,
-        current_streak: userStats.streak,
-      });
+    setUserStats((prev) => ({
+      ...prev,
+      points: newPoints,
+      questionsAnswered: newQuestionsAnswered,
+    }));
 
-      // 3️⃣ Update Supabase (online only)
-      if (navigator.onLine) {
-        const { error } = await supabase
-          .from("users")
-          .update({
-            points: newPoints,
-            current_streak: userStats.streak,
-          })
-          .eq("id", currentUser.id);
+    // Prepare correct Supabase update object
+    let userDataToUpdate = {
+      points: newPoints,
+      number_of_questions_solved: (currentUser.number_of_questions_solved || 0) + 1,
+      attempted_questions: [...attemptedQuestionIds, question.id],
+    };
 
-        if (error) console.log("Supabase update error:", error);
+    if (question.is_hot) {
+  // Increment hot_attempted count
+  const newHotAttempted = (currentUser.hot_solved || 0) + 1;
 
-        // Optionally, also store attempted question
-        const attemptedQuestionIds = currentUser.attempted_question_ids || [];
-        if (!attemptedQuestionIds.includes(question.id)) {
-          attemptedQuestionIds.push(question.id);
-          await supabase
-            .from("users")
-            .update({ attempted_question_ids: attemptedQuestionIds })
-            .eq("id", currentUser.id);
+  // Always update this column
+  userDataToUpdate.hot_solved = newHotAttempted;
 
-          // Update localStorage fallback
-          await User.updateMyUserData({
-            attempted_question_ids: attemptedQuestionIds,
-          });
-        }
-      }
-    } catch (error) {
-      console.log("Error recording answer:", error);
-    }
-  };
+  // If reached 5 (or the total number of hot questions), mark as true
+  if (newHotAttempted >= 5) {
+    userDataToUpdate.has_attempted_today_hot = true;
+  }
+}
+
+
+    // Update Supabase
+    const { data, error } = await supabase
+      .from("users")
+      .update(userDataToUpdate)
+      .eq("id", currentUser.id);
+
+    if (error) console.log("Supabase update error:", error);
+    else console.log("Supabase update successful:", data);
+
+    // Update local storage / fallback
+    await User.updateMyUserData(userDataToUpdate);
+    setCurrentUser((prev) => ({ ...prev, ...userDataToUpdate }));
+
+  } catch (error) {
+    console.log("Error recording answer:", error);
+  }
+};
+
+
+
+
+
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
@@ -215,4 +209,3 @@ export default function HomePage() {
     </div>
   );
 }
-
