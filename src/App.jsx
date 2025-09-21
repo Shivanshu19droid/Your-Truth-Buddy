@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import VerifyPage from "./pages/VerifyPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import ProfilePage from "./pages/ProfilePage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -19,6 +20,9 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Public route accessible to everyone */}
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+
         {/* Public Route */}
         {!currentUser && (
           <Route path="/" element={<LandingPage onLogin={setCurrentUser} />} />
@@ -41,6 +45,3 @@ function App() {
 }
 
 export default App;
-
-
-
