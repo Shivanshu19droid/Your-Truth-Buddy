@@ -208,7 +208,7 @@ the Google Gemini API.
         </h2>
         <p className="mb-4">
           If you have any questions about this Privacy Policy, please contact us
-          at: <strong>[Your Contact Email Address]</strong>
+          at: <strong>Ashutoshkumar63041@gmail.com</strong>
         </p>
       </div>
     </div>
