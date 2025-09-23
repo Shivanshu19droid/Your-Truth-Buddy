@@ -21,7 +21,7 @@ function App() {
     <Router>
       <Routes>
         {/* Public route accessible to everyone */}
-        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
         {/* Public Route */}
         {!currentUser && (
